@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
-# Usage: ./setup.sh   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
+# Usage: ./setup.sh [--unlock-fleets]
+#   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
+#   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
+#                    (the release build hides every fleet behind _debug)
 set -euo pipefail
+UNLOCK_FLEETS=0
+for a in "$@"; do
+  case "$a" in
+    --unlock-fleets) UNLOCK_FLEETS=1 ;;
+    *) echo "unknown option: $a" >&2; exit 2 ;;
+  esac
+done
 cd "$(dirname "$0")"
 export LANG=en_US.UTF-8
 CDV="mise exec -- npx cordova"
@@ -58,6 +68,8 @@ rm -rf www && rsync -a --exclude cordova.js --exclude cordova_plugins.js --exclu
 # BHC additions, loaded before cordova.js:
 #   bhc-compat.js  required shims for current iOS/WebKit (see file)
 #   bhc-debug.js   on-screen console / errors / fetch log (drop for a pristine build)
+# Optional game-code patch (off by default; the default build keeps www/js/index.min.js untouched).
+if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
 cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/
 sed -i '' 's#    <script src="cordova.js"></script>#    <script src="bhc-debug.js"></script>\n    <script src="bhc-compat.js"></script>\n    <script src="cordova.js"></script>#' www/index.html
 $CDV prepare ios

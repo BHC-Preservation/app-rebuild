@@ -14,7 +14,7 @@ gives us a debuggable build (on-screen log, Safari Web Inspector) for reverse en
 
 - Bundle ID `org.bhcpreserve.colonies`, display name **"Colonies BHC"**, version 1.3.13.
 - It installs **next to** the original app and keeps its own data (settings, saved games).
-- The game code isn't patched. The only additions are two small scripts loaded before `cordova.js` (see
+- By default the game code isn't patched (an opt-in fleet patch exists, see [Unlocking fleets](#unlocking-fleets)). The only additions are two small scripts loaded before `cordova.js` (see
   [Deviations](#deviations-from-the-original)).
 
 **Status:** in the iOS Simulator it starts up and reaches the main menu (intro, disclaimer, main menu; iPhone 18 Pro,
@@ -68,6 +68,21 @@ LANG=en_US.UTF-8 mise exec -- npx cordova build ios --emulator --buildConfig=bui
 
 The first run takes a few minutes (npm + CocoaPods).
 
+### Unlocking fleets
+
+```bash
+./setup.sh --unlock-fleets
+```
+
+The release build of 1.3.13 shows every fleet as inactive, so only "no fleet" can be picked. The `Fleet`
+constructor (deob `881.js` ~l. 656) keeps the availability the ARC reports only when `_debug` is on.
+`--unlock-fleets` runs `patches/fleet_gate.py` on `www/js/index.min.js`, which removes that one `_debug` check.
+Nothing else changes, and the debug mode stays off. The list of available fleets still comes from the ARC
+(`01 01 04 01`, FW 1.0.23 ships with fleets 1–10 unlocked; more can be unlocked with `tools/arc.py fleet-unlock`),
+and the chosen fleet goes into the new-game frame through the app's normal code path.
+
+Not yet tested with a real ARC (the Simulator has no Bluetooth).
+
 ### Running it
 
 - **Simulator:** after the build, open `colonies/platforms/ios/App.xcworkspace` in Xcode and run on a simulator, or
@@ -115,6 +130,7 @@ setup.sh            rebuilds colonies/ (see above)
 colonies/           Cordova project; only config.xml, build.json, hooks/ and package*.json are tracked
   hooks/            after_prepare fixes for building the 2023 plugin set with current Xcode
 local-plugins/      patched plugins (dfu-update, lock-font-size)
+patches/            opt-in game-code patches (fleet_gate.py, see "Unlocking fleets")
 overlay/            bhc-compat.js (required shims), bhc-debug.js (on-screen debug log)
 mise.toml           Node 22
 ```
