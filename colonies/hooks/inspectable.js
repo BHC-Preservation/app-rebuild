@@ -22,4 +22,15 @@ module.exports = function (ctx) {
       console.log('compat hook: removed netinet6/in6.h import in ' + path.relative(ctx.opts.projectRoot, f));
     }
   }
+  // Pods: iOSDFULibrary/ZIPFoundation end up with a deployment target above the app's 15.0 (seen: 17.6), so
+  // `import iOSDFULibrary` fails with "module has a minimum deployment target of iOS 17.6". Pin every pod target to 15.0.
+  const pods = path.join(ctx.opts.projectRoot, 'platforms/ios/Pods/Pods.xcodeproj/project.pbxproj');
+  if (fs.existsSync(pods)) {
+    const s = fs.readFileSync(pods, 'utf8');
+    const t = s.replace(/IPHONEOS_DEPLOYMENT_TARGET = [\d.]+;/g, 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;');
+    if (t !== s) {
+      fs.writeFileSync(pods, t);
+      console.log('compat hook: pinned pod deployment targets to iOS 15.0');
+    }
+  }
 };
