@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Rebuild of Colonies 1.3.13 (com.threeheadedmonster.beyondhumanity.colonies.companion) from preserved www/.
+     Preferences copied from the original config.xml; see ../README.md. -->
+<widget id="org.bhcpreserve.colonies" ios-CFBundleVersion="1.3.13" version="1.3.13"
+        xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Colonies BHC</name>
+    <description>Preservation rebuild of the Beyond Humanity: Colonies companion app.</description>
+    <content src="index.html" />
+    <access origin="*" />
+    <allow-intent href="http*://*/*" />
+    <preference name="AllowInlineMediaPlayback" value="false" />
+    <preference name="BackupWebStorage" value="none" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="EnableViewportScale" value="false" />
+    <preference name="KeyboardDisplayRequiresUserAction" value="true" />
+    <preference name="MediaTypesRequiringUserActionForPlayback" value="none" />
+    <preference name="SuppressesIncrementalRendering" value="false" />
+    <preference name="SuppressesLongPressGesture" value="false" />
+    <preference name="Suppresses3DTouchGesture" value="false" />
+    <preference name="GapBetweenPages" value="0" />
+    <preference name="PageLength" value="0" />
+    <preference name="PaginationBreakingMode" value="page" />
+    <preference name="PaginationMode" value="unpaginated" />
+    <preference name="StatusBarStyle" value="lightcontent" />
+    <preference name="KeepAVAudioSessionAlwaysActive" value="NO" />
+    <preference name="AndroidXEnabled" value="true" />
+    <preference name="Fullscreen" value="true" />
+    <preference name="AllowUntrustedCerts" value="true" />
+    <preference name="InterceptRemoteRequests" value="all" />
+    <preference name="allowFileAccessFromFileURLs" value="true" />
+    <preference name="allowUniversalAccessFromFileURLs" value="true" />
+    <preference name="StatusBarOverlaysWebView" value="true" />
+    <preference name="deployment-target" value="15.0" />
+    <preference name="SwiftVersion" value="5" />
+    <preference name="InspectableWebview" value="true" />
+    <platform name="ios">
+        <hook type="after_prepare" src="hooks/inspectable.js" />
+        <edit-config target="NSBluetoothAlwaysUsageDescription" file="*-Info.plist" mode="merge"><string>Bluetooth connection is necessary in order to populate game data onto smart devices</string></edit-config>
+        <edit-config target="NSBluetoothPeripheralUsageDescription" file="*-Info.plist" mode="merge"><string>Bluetooth connection is necessary in order to populate game data onto smart devices</string></edit-config>
+        <edit-config target="NSLocationWhenInUseUsageDescription" file="*-Info.plist" mode="merge"><string>We need to use bluetooth and location to be able to connect and detect module that communicates with ARC</string></edit-config>
+        <edit-config target="NSLocationAlwaysUsageDescription" file="*-Info.plist" mode="merge"><string>We need to use bluetooth and location to be able to connect and detect module that communicates with ARC</string></edit-config>
+        <edit-config target="NSLocationAlwaysAndWhenInUseUsageDescription" file="*-Info.plist" mode="merge"><string>We need to use bluetooth and location to be able to connect and detect module that communicates with ARC</string></edit-config>
+        <edit-config target="NSMotionUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires motion detection access to function properly.</string></edit-config>
+        <edit-config target="NSMicrophoneUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires microphone access to function properly.</string></edit-config>
+        <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires camera access to function properly.</string></edit-config>
+        <edit-config target="NSPhotoLibraryUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires photo library access to function properly.</string></edit-config>
+        <edit-config target="NSContactsUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires contacts access to function properly.</string></edit-config>
+        <edit-config target="NSCalendarsUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires calendar access to function properly.</string></edit-config>
+        <edit-config target="NSRemindersUsageDescription" file="*-Info.plist" mode="merge"><string>This app requires reminders access to function properly.</string></edit-config>
+        <edit-config target="UIBackgroundModes" file="*-Info.plist" mode="merge"><array><string>bluetooth-central</string></array></edit-config>
+        <edit-config target="UIRequiresFullScreen" file="*-Info.plist" mode="merge"><true/></edit-config>
+        <edit-config target="UIStatusBarHidden" file="*-Info.plist" mode="merge"><true/></edit-config>
+        <edit-config target="UIViewControllerBasedStatusBarAppearance" file="*-Info.plist" mode="merge"><false/></edit-config>
+    </platform>
+</widget>

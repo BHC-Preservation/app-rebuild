@@ -1,0 +1,5 @@
+{
+  "name": "cordova-plugin-lock-font-size",
+  "version": "0.0.1",
+  "cordova": { "id": "cordova-plugin-lock-font-size", "platforms": ["ios"] }
+}

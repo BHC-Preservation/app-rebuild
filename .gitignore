@@ -1,0 +1,7 @@
+node_modules/
+colonies/node_modules/
+colonies/platforms/
+colonies/plugins/
+colonies/www/
+*.log
+.DS_Store
