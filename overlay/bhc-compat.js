@@ -26,3 +26,32 @@
   // cordova-plugin-screen-orientation may replace screen.orientation while Cordova boots; patch again.
   document.addEventListener('deviceready', patch, true);
 })();
+(function () {
+  // 2) Dead publisher API: after reading the ARC firmware the game awaits fw_status and fw_app on exogen.space
+  //    before showing the main menu ("checking firmware"). The host now serves a self-signed cert with no backend
+  //    and WKWebView's fetch() can stay pending forever, so the app never reaches its own offline fallback
+  //    (isAppCompatibleLocally, FW >= MIN_FW). Reject such requests after a timeout instead.
+  var TIMEOUT_MS = 8000;
+  var HOST = /^https?:\/\/([^\/]*\.)?exogen\.space\//i;
+  function wrap() {
+    if (!window.fetch || window.fetch.__bhcTimeout) return;
+    var orig = window.fetch;
+    var wrapped = function (input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      var p = orig.apply(this, arguments);
+      if (!HOST.test(url)) return p;
+      return new Promise(function (resolve, reject) {
+        var t = setTimeout(function () {
+          console.warn('[bhc-compat] fetch timeout after ' + TIMEOUT_MS + ' ms: ' + url);
+          reject(new TypeError('bhc-compat: timeout ' + url));
+        }, TIMEOUT_MS);
+        p.then(function (r) { clearTimeout(t); resolve(r); }, function (e) { clearTimeout(t); reject(e); });
+      });
+    };
+    wrapped.__bhcTimeout = true;
+    window.fetch = wrapped;
+  }
+  wrap();
+  // fetch may be replaced while Cordova boots (see bhc-debug.js); wrap again.
+  document.addEventListener('deviceready', wrap, true);
+})();
