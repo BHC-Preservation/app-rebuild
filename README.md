@@ -206,6 +206,7 @@ Every one of these was forced by current iOS/Xcode. Nothing in the game code cha
 | `@globules-io/cordova-plugin-ios-xhr` dropped | its XHR polyfill returns 400 for `app://` URLs; cordova-ios 8 serves `www/` itself |
 | `cordova-plugin-lock-font-size` → local, JS-only, `resolve(false)` on iOS | the original had no iOS native part; cordova-ios 8 never answers calls to a missing class, so startup hung |
 | `cordova-plugin-network-information` 2.0.2 + a hook that removes `#import <netinet6/in6.h>` | new Xcode rejects that private header |
+| `cordova.plugins.diagnostic` 7.1.1 + `cordova-plugin-battery-status` 2.0.3: phone battery level fixed by a hook (`hooks/inspectable.js`) | the firmware update in the app is blocked below 25 % phone battery. `getCurrentBatteryLevel` read the level off the main thread right after turning monitoring on, got -1 ("-100 %"), so the update was always "UPGRADE BLOCKED", and then turned monitoring off, which also silenced battery-status. Now: main thread, monitoring stays on, retried for up to 2 s while iOS still says -1 (it stays -1 without a battery, e.g. in the Simulator); battery-status sends the level at start and registers even if monitoring was already on |
 | `bhc-compat.js`: `screen.orientation.lock()` shim | on current WKWebView it's missing or never settles, so the game aborted at startup (black screen) |
 | `IPHONEOS_DEPLOYMENT_TARGET=15.0` (`build.json`) | Xcode 27 doesn't support targets below 15 (the original's minimum was 15.0 as well) |
 
