@@ -28,12 +28,19 @@
     }
   }
 
+  var inLog = false;
   function wrapConsole() {
     var c = window.console;
     if (!c || c.__bhc) return;
     ['log', 'info', 'warn', 'error', 'debug'].forEach(function (k) {
       var orig = c[k] ? c[k].bind(c) : function () {};
-      c[k] = function () { push(k, arguments); orig.apply(null, arguments); };
+      // Re-entrancy guard: Cordova's console plugin replaces window.console with one that calls the previous
+      // (already wrapped) console, so after a re-wrap one call would be logged twice.
+      c[k] = function () {
+        if (inLog) return orig.apply(null, arguments);
+        inLog = true;
+        try { push(k, arguments); orig.apply(null, arguments); } finally { inLog = false; }
+      };
     });
     try { c.__bhc = true; } catch (e) {}
   }
