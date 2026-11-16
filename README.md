@@ -29,19 +29,25 @@ iOS 27.2). BLE (talking to the ARC) and DFU haven't been tested yet because they
 | **mise** | provides Node 22 (`mise.toml`). Run `mise install` in this directory |
 | `git`, `rsync` | one plugin (`cordova-plugin-file-transfer`) installs straight from GitHub |
 | network access | npm registry, GitHub, CocoaPods CDN |
-| **`../re/app-snapshot/`** | **required.** The original `www/` from the 1.3.13 app comes from the private `BHC/re` repo and isn't stored here |
+| **original `www/`** | **required.** The web layer of the 1.3.13 app, not stored here. Produced by [`extract`](https://github.com/BHC-Preservation/extract) from your own copy of the app |
 | Apple ID added in Xcode | only for building to a real iPhone/iPad/Mac. A free account works, but the signature expires after 7 days |
 
-The original `www/` is copyrighted by the publisher, which is why it lives only in the private `re` repo. Clone the
-repos side by side:
+The original `www/` is copyrighted by the publisher, so it isn't stored here. Extract it from your own copy of the app,
+next to this repo:
 
 ```bash
-git clone <private reference copy of the app www/>
+# you own the app: extract it yourself (Apple Silicon Mac with the app installed, or your own .ipa)
+git clone https://github.com/BHC-Preservation/extract.git
+(cd extract && mise install && mise trust && SKIP_DEOB=1 ./extract.sh)   # → extract/out/app-snapshot, checked against SHA256SUMS
+```
+
+`setup.sh` looks for `../extract/out/app-snapshot` (or `../re/app-snapshot`, a reference copy with the same files). Any other
+location: `./setup.sh --snapshot=DIR` or `BHC_SNAPSHOT=DIR ./setup.sh`, where `DIR` holds `www/`.
+
+```bash
 git clone https://github.com/BHC-Preservation/app-rebuild.git
 cd app-rebuild && mise install
 ```
-
-Make sure `../re/app-snapshot/www/index.html` exists before going on.
 
 CocoaPods needs a UTF-8 locale. `setup.sh` sets `LANG=en_US.UTF-8` for its own commands, so also set it for any
 manual `cordova`/`pod` commands (as shown below).
@@ -61,7 +67,7 @@ LANG=en_US.UTF-8 mise exec -- npx cordova build ios --emulator --buildConfig=bui
 2. `cordova create` + `cordova platform add ios@8.2.0`
 3. adds the original plugin set at the original versions, apart from the deviations listed below (two of the
    plugins come from `local-plugins/`)
-4. copies `../re/app-snapshot/www/` into `colonies/www/`, leaving out the files Cordova generates itself
+4. copies the original `www/` (see above) into `colonies/www/`, leaving out the files Cordova generates itself
 5. copies `overlay/bhc-compat.js` and `overlay/bhc-debug.js` and loads them before `cordova.js` in `index.html`
 6. runs `cordova prepare ios`, then checks that the JS plugin modules match the original app's
    `cordova_plugins.js` (expected output: `OK: plugin modules identical to original ...`)
@@ -82,6 +88,26 @@ Nothing else changes, and the debug mode stays off. The list of available fleets
 and the chosen fleet goes into the new-game frame through the app's normal code path.
 
 Not yet tested with a real ARC (the Simulator has no Bluetooth).
+
+### Publisher API (`--api`)
+
+```bash
+./setup.sh --api=fake                                   # or timeout (default), block, or a server URL
+./setup.sh --api=https://bhc.example.org/bhcapi/        # replacement server
+```
+
+After reading the ARC firmware the app waits for `fw_status` and `fw_app` on `exogen.space/bhcapi` before it shows
+the main menu. That API is dead and on a phone the request can hang forever ("checking firmware").
+`overlay/bhc-compat.js` intercepts every request to that API:
+
+| mode | behaviour |
+|---|---|
+| `timeout` (default) | request goes out, fails after 1 s; the app falls back to its local check (FW ≥ 1.0.23) |
+| `block` | fails immediately, nothing leaves the phone |
+| `fake` | answered locally: `fw_status` → `{"status":"current"}`, `fw_app` → 200 (compatible), anything else → 404 |
+| URL | `https://exogen.space/bhcapi/?a=…` is sent to `<URL>?a=…` (fetch, XHR and the native firmware downloader), with the same 1 s timeout |
+
+For testing without a rebuild, `localStorage.bhcApiMode` overrides the mode (set it in Safari Web Inspector, then reload).
 
 ### Running it
 
@@ -135,5 +161,5 @@ overlay/            bhc-compat.js (required shims), bhc-debug.js (on-screen debu
 mise.toml           Node 22
 ```
 
-This repo is private. Don't push it, or anything built from it, to a public remote: the built app contains the
-publisher's copyrighted `www/`.
+This repo contains no code or assets from the original app. A built app does: it contains the publisher's
+copyrighted `www/`. Build it for yourself and don't distribute the result.

@@ -1,23 +1,49 @@
 #!/usr/bin/env bash
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
-# Usage: ./setup.sh [--unlock-fleets]
+# Usage: ./setup.sh [--unlock-fleets] [--api=timeout|block|fake|<URL>]
 #   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
 #   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
 #                    (the release build hides every fleet behind _debug)
+#   --api=MODE       what happens to requests for the dead publisher API exogen.space/bhcapi (see overlay/bhc-compat.js):
+#                    timeout (default, fail after 1 s), block (fail at once), fake (local answers: FW current,
+#                    app compatible), or a base URL of a replacement server, e.g. --api=https://bhc.example.org/bhcapi/
+#   --snapshot=DIR   the original app's web layer: a directory holding www/ (default: $BHC_SNAPSHOT, else the first of
+#                    ../re/app-snapshot and ../extract/out/app-snapshot; the latter is what extract.sh produces from
+#                    your own copy of the app, see https://github.com/BHC-Preservation/extract)
 set -euo pipefail
 UNLOCK_FLEETS=0
+API_MODE=timeout
+SNAPSHOT="${BHC_SNAPSHOT:-}"
 for a in "$@"; do
   case "$a" in
     --unlock-fleets) UNLOCK_FLEETS=1 ;;
+    --snapshot=*) SNAPSHOT="${a#--snapshot=}" ;;
+    --api=timeout|--api=block|--api=fake|--api=http://*|--api=https://*) API_MODE="${a#--api=}" ;;
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
 done
+# A user-given snapshot path is relative to the caller's directory, so resolve it before cd.
+if [ -n "$SNAPSHOT" ]; then
+  _s="$SNAPSHOT"; SNAPSHOT="$(cd "$_s" 2>/dev/null && pwd)" || { echo "snapshot directory not found: $_s" >&2; exit 2; }
+fi
 cd "$(dirname "$0")"
 export LANG=en_US.UTF-8
 CDV="mise exec -- npx cordova"
 P=colonies
-SNAP=../re/app-snapshot/www
+if [ -z "$SNAPSHOT" ]; then
+  for d in ../re/app-snapshot ../extract/out/app-snapshot; do
+    [ -f "$d/www/index.html" ] && { SNAPSHOT="$d"; break; }
+  done
+fi
+[ -n "$SNAPSHOT" ] && [ -f "$SNAPSHOT/www/js/index.min.js" ] || {
+  echo "original www/ not found${SNAPSHOT:+ in $SNAPSHOT}. Extract it from your own copy of the app:" >&2
+  echo "  git clone https://github.com/BHC-Preservation/extract ../extract && ../extract/extract.sh" >&2
+  echo "or pass --snapshot=DIR (a directory holding www/)" >&2
+  exit 2
+}
+SNAP="$(cd "$SNAPSHOT/www" && pwd)"   # absolute: used from inside $P below
+echo "== original www/: $SNAP"
 
 [ -d node_modules/cordova ] || mise exec -- npm i -D cordova@12
 
@@ -64,17 +90,21 @@ for p in "${PLUGINS[@]}"; do
 done
 
 # Original www/ minus files Cordova generates itself.
-rm -rf www && rsync -a --exclude cordova.js --exclude cordova_plugins.js --exclude plugins/ --exclude cordova-js-src/ ../$SNAP/ www/
+rm -rf www && rsync -a --exclude cordova.js --exclude cordova_plugins.js --exclude plugins/ --exclude cordova-js-src/ "$SNAP/" www/
 # BHC additions, loaded before cordova.js:
 #   bhc-compat.js  required shims for current iOS/WebKit (see file)
 #   bhc-debug.js   on-screen console / errors / fetch log (drop for a pristine build)
 # Optional game-code patch (off by default; the default build keeps www/js/index.min.js untouched).
 if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
 cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/
+# Publisher API mode (--api); characters special to sed / the JS string literal are rejected.
+case "$API_MODE" in *"#"*|*"'"*|*"&"*|*"\\"*) echo "--api URL must not contain # ' & or \\" >&2; exit 2 ;; esac
+sed -i '' "s#^  var API_MODE = '[^']*';#  var API_MODE = '$API_MODE';#" www/bhc-compat.js
+grep -q "^  var API_MODE = '$API_MODE';" www/bhc-compat.js || { echo "failed to set API_MODE in bhc-compat.js" >&2; exit 1; }
 sed -i '' 's#    <script src="cordova.js"></script>#    <script src="bhc-debug.js"></script>\n    <script src="bhc-compat.js"></script>\n    <script src="cordova.js"></script>#' www/index.html
 $CDV prepare ios
 
 # Sanity check: same JS plugin modules as the original app.
-diff <(grep -o '"id": "[^"]*"' ../$SNAP/cordova_plugins.js | grep -v 'cordova-plugin-ios-xhr' | sort) \
+diff <(grep -o '"id": "[^"]*"' "$SNAP/cordova_plugins.js" | grep -v 'cordova-plugin-ios-xhr' | sort) \
      <(grep -o '"id": "[^"]*"' platforms/ios/www/cordova_plugins.js | sort) \
   && echo "OK: plugin modules identical to original (minus ios-xhr, see above)"

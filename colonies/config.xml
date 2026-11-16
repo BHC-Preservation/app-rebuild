@@ -18,6 +18,8 @@
     <preference name="SuppressesLongPressGesture" value="false" />
     <preference name="Suppresses3DTouchGesture" value="false" />
     <preference name="GapBetweenPages" value="0" />
+    <!-- BHC: the game locks landscape via screen.orientation.lock(), which no longer holds on current iOS; on rotation it reloads the main menu -->
+    <preference name="Orientation" value="landscape" />
     <preference name="PageLength" value="0" />
     <preference name="PaginationBreakingMode" value="page" />
     <preference name="PaginationMode" value="unpaginated" />
