@@ -1,0 +1,11 @@
+removeTask (7616.js ~l. 1420) splices findIndex() without checking -1, so removing a task that is no longer
+queued drops the last one. With a slow publisher API that is exit-initial-loop-task, and the connect screen
+stays at "synchronizing with ARC". Return [] when the task is not queued. setup.sh --fix-task-queue.
+
+--- a/7616.js
++++ b/7616.js
+@@ -1426,3 +1426,3 @@
+   });
+-  return _0x652534.Z.data.taskArray.splice(_0x4692e4, 1);
++  return _0x4692e4 < 0 ? [] /* BHC: task not queued, don't drop the last one */ : _0x652534.Z.data.taskArray.splice(_0x4692e4, 1);
+ }

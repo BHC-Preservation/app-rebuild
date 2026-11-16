@@ -74,6 +74,40 @@ LANG=en_US.UTF-8 mise exec -- npx cordova build ios --emulator --buildConfig=bui
 
 The first run takes a few minutes (npm + CocoaPods).
 
+### Building from the deobfuscated code (`--from-deob`)
+
+```bash
+./setup.sh --from-deob                              # modules from ../extract/out/deob
+./setup.sh --from-deob --unlock-fleets --fix-task-queue
+./setup.sh --from-deob --patch=my-fix.patch          # your own fix, repeatable
+```
+
+By default the app gets the original, minified `www/js/index.min.js`. With `--from-deob` it gets a bundle built
+from the webcrack modules instead (`../extract/out/deob`, the 109 `NNNN.js` files): `setup.sh` copies them, applies
+the patches, and puts them back together with `../extract/rebundle.mjs`. Fixes are then plain diffs on readable
+code instead of string replacements in obfuscated code:
+
+| option | without `--from-deob` | with `--from-deob` |
+|---|---|---|
+| `--unlock-fleets` | `patches/fleet_gate.py` on `index.min.js` | `patches/deob/fleet-gate.patch` on `881.js` |
+| `--fix-task-queue` | `patches/task_queue.py` on `index.min.js` | `patches/deob/task-queue.patch` on `7616.js` |
+| `--patch=FILE` | – | your diff, applied with `patch -p1` in the deob directory |
+
+Writing a fix: read `../extract/out/annotated/` (same modules with readable names and **the same line
+numbers**), change a copy of the file in `deob/`, then
+
+```bash
+diff -U1 --label a/3488.js --label b/3488.js ../extract/out/deob/3488.js 3488.js > my-fix.patch
+```
+
+Keep the context at `-U1` and the change small: a patch carries a few lines of the original code, a patched file
+carries all of it. Share patches, never patched files or builds. If a patch doesn't apply, `setup.sh` stops before
+the slow part.
+
+Requirements: `../extract` with its npm packages (`extract.sh` installs them) and its `out/deob`, or
+`--from-deob=DIR` for another webcrack output. **Confirmed (November 2026):** the rebundled app runs in the Simulator
+the same way as the original up to the main menu.
+
 ### Unlocking fleets
 
 ```bash
@@ -182,7 +216,7 @@ setup.sh            rebuilds colonies/ (see above)
 colonies/           Cordova project; only config.xml, build.json, hooks/ and package*.json are tracked
   hooks/            after_prepare fixes for building the 2023 plugin set with current Xcode
 local-plugins/      patched plugins (dfu-update, lock-font-size)
-patches/            opt-in game-code patches (fleet_gate.py, task_queue.py, see "Build")
+patches/            opt-in game-code patches: *.py for the original index.min.js, deob/*.patch for --from-deob
 overlay/            bhc-compat.js (required shims), bhc-debug.js (on-screen debug log)
 mise.toml           Node 22
 ```

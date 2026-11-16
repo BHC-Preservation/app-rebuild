@@ -1,0 +1,10 @@
+Fleet picker: keep the availability the ARC reports (01 01 04 01) instead of hiding every fleet
+outside debug builds. Constructor of Fleet (881.js ~l. 656). Opt-in: setup.sh --unlock-fleets.
+
+--- a/881.js
++++ b/881.js
+@@ -655,3 +655,3 @@
+     this.id = _0x24dc6f;
+-    if (_0x2b84f8.Z._debug) {
++    if (true /* BHC: fleet availability from the ARC, not only in debug builds */ || _0x2b84f8.Z._debug) {
+       this.isAvail = _0x45c5c6;

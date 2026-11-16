@@ -2,6 +2,7 @@
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
 # Usage: ./setup.sh [--unlock-fleets] [--fix-task-queue] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
+#                   [--snapshot=DIR] [--from-deob[=DIR]] [--patch=FILE ...]
 #   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
 #   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
 #                    (the release build hides every fleet behind _debug)
@@ -15,18 +16,30 @@
 #   --snapshot=DIR   the original app's web layer: a directory holding www/ (default: $BHC_SNAPSHOT, else the first of
 #                    ../re/app-snapshot and ../extract/out/app-snapshot; the latter is what extract.sh produces from
 #                    your own copy of the app, see https://github.com/BHC-Preservation/extract)
+#   --from-deob[=DIR] build www/js/index.min.js from the deobfuscated modules instead of the original file: copy DIR
+#                    (default: deob/ next to the snapshot, i.e. ../extract/out/deob), apply patches, then put the modules
+#                    back together with ../extract/rebundle.mjs. Game-code patches are then diffs on the modules:
+#                    --unlock-fleets -> patches/deob/fleet-gate.patch, --fix-task-queue -> patches/deob/task-queue.patch
+#   --patch=FILE     (with --from-deob, repeatable) apply your own diff to the modules, e.g. made with
+#                    diff -U1 a/3488.js b/3488.js (paths relative to the deob dir, -p1)
 set -euo pipefail
 UNLOCK_FLEETS=0
 FIX_TASK_QUEUE=0
 NO_PAUSE_FADE=0
 API_MODE=timeout
 SNAPSHOT="${BHC_SNAPSHOT:-}"
+FROM_DEOB=0
+DEOB=""
+USER_PATCHES=()
 for a in "$@"; do
   case "$a" in
     --unlock-fleets) UNLOCK_FLEETS=1 ;;
     --fix-task-queue) FIX_TASK_QUEUE=1 ;;
     --no-pause-fade) NO_PAUSE_FADE=1 ;;
     --snapshot=*) SNAPSHOT="${a#--snapshot=}" ;;
+    --from-deob) FROM_DEOB=1 ;;
+    --from-deob=*) FROM_DEOB=1; DEOB="${a#--from-deob=}" ;;
+    --patch=*) USER_PATCHES+=("${a#--patch=}") ;;
     --api=timeout|--api=block|--api=fake|--api=http://*|--api=https://*) API_MODE="${a#--api=}" ;;
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
@@ -34,6 +47,12 @@ done
 # A user-given snapshot path is relative to the caller's directory, so resolve it before cd.
 if [ -n "$SNAPSHOT" ]; then
   _s="$SNAPSHOT"; SNAPSHOT="$(cd "$_s" 2>/dev/null && pwd)" || { echo "snapshot directory not found: $_s" >&2; exit 2; }
+fi
+abspath() { (cd "$(dirname "$1")" 2>/dev/null && echo "$(pwd)/$(basename "$1")") || { echo "not found: $1" >&2; exit 2; }; }
+if [ -n "$DEOB" ]; then DEOB="$(cd "$DEOB" 2>/dev/null && pwd)" || { echo "deob directory not found" >&2; exit 2; }; fi
+if [ ${#USER_PATCHES[@]} -gt 0 ]; then
+  [ $FROM_DEOB = 1 ] || { echo "--patch needs --from-deob" >&2; exit 2; }
+  for i in "${!USER_PATCHES[@]}"; do USER_PATCHES[$i]="$(abspath "${USER_PATCHES[$i]}")"; [ -f "${USER_PATCHES[$i]}" ] || { echo "patch not found: ${USER_PATCHES[$i]}" >&2; exit 2; }; done
 fi
 cd "$(dirname "$0")"
 export LANG=en_US.UTF-8
@@ -52,6 +71,28 @@ fi
 }
 SNAP="$(cd "$SNAPSHOT/www" && pwd)"   # absolute: used from inside $P below
 echo "== original www/: $SNAP"
+
+# --from-deob: patched modules -> bundle, before the slow part, so a patch that doesn't apply fails early.
+BUNDLE=""
+if [ $FROM_DEOB = 1 ]; then
+  [ -n "$DEOB" ] || DEOB="$(cd "$SNAPSHOT/.." && pwd)/deob"
+  [ -f "$DEOB/deobfuscated.js" ] || { echo "no webcrack output in $DEOB (run extract.sh, or pass --from-deob=DIR)" >&2; exit 2; }
+  EXTRACT="$(cd .. && pwd)/extract"
+  [ -f "$EXTRACT/rebundle.mjs" ] && [ -d "$EXTRACT/node_modules/@babel/parser" ] \
+    || { echo "needs ../extract with its npm packages (git clone https://github.com/BHC-Preservation/extract ../extract && ../extract/extract.sh)" >&2; exit 2; }
+  WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+  cp -R "$DEOB" "$WORK/deob"
+  DPATCHES=()
+  [ $UNLOCK_FLEETS = 1 ] && DPATCHES+=("$(pwd)/patches/deob/fleet-gate.patch")
+  [ $FIX_TASK_QUEUE = 1 ] && DPATCHES+=("$(pwd)/patches/deob/task-queue.patch")
+  for p in ${DPATCHES[@]+"${DPATCHES[@]}"} ${USER_PATCHES[@]+"${USER_PATCHES[@]}"}; do
+    echo "== patch $(basename "$p")"
+    patch -p1 -d "$WORK/deob" --forward --batch --no-backup-if-mismatch < "$p" || { echo "patch failed: $p" >&2; exit 1; }
+  done
+  (cd "$EXTRACT" && mise exec -- node rebundle.mjs "$WORK/deob" "$WORK/index.js")
+  BUNDLE="$WORK/index.js"
+  echo "== www/js/index.min.js from $DEOB (rebundled)"
+fi
 
 [ -d node_modules/cordova ] || mise exec -- npm i -D cordova@12
 
@@ -103,8 +144,12 @@ rm -rf www && rsync -a --exclude cordova.js --exclude cordova_plugins.js --exclu
 #   bhc-compat.js  required shims for current iOS/WebKit (see file)
 #   bhc-debug.js   on-screen console / errors / fetch log (drop for a pristine build)
 # Optional game-code patches (off by default; the default build keeps www/js/index.min.js untouched).
-if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
-if [ $FIX_TASK_QUEUE = 1 ]; then python3 -I ../patches/task_queue.py www/js/index.min.js; fi
+if [ -n "$BUNDLE" ]; then
+  cp "$BUNDLE" www/js/index.min.js   # --from-deob: patches were applied to the modules above
+else
+  if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
+  if [ $FIX_TASK_QUEUE = 1 ]; then python3 -I ../patches/task_queue.py www/js/index.min.js; fi
+fi
 cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/
 # Publisher API mode (--api); characters special to sed / the JS string literal are rejected.
 case "$API_MODE" in *"#"*|*"'"*|*"&"*|*"\\"*) echo "--api URL must not contain # ' & or \\" >&2; exit 2 ;; esac
