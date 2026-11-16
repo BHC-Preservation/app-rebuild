@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
-# Usage: ./setup.sh [--unlock-fleets] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
+# Usage: ./setup.sh [--unlock-fleets] [--fix-task-queue] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
 #   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
 #   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
 #                    (the release build hides every fleet behind _debug)
+#   --fix-task-queue apply patches/task_queue.py: removeTask no longer drops the last queued task, which left the
+#                    app stuck at "synchronizing with ARC" when the publisher API answers slowly (e.g. --api=<URL>)
 #   --api=MODE       what happens to requests for the dead publisher API exogen.space/bhcapi (see overlay/bhc-compat.js):
 #                    timeout (default, fail after 1 s), block (fail at once), fake (local answers: FW current,
 #                    app compatible), or a base URL of a replacement server, e.g. --api=https://bhc.example.org/bhcapi/
@@ -15,12 +17,14 @@
 #                    your own copy of the app, see https://github.com/BHC-Preservation/extract)
 set -euo pipefail
 UNLOCK_FLEETS=0
+FIX_TASK_QUEUE=0
 NO_PAUSE_FADE=0
 API_MODE=timeout
 SNAPSHOT="${BHC_SNAPSHOT:-}"
 for a in "$@"; do
   case "$a" in
     --unlock-fleets) UNLOCK_FLEETS=1 ;;
+    --fix-task-queue) FIX_TASK_QUEUE=1 ;;
     --no-pause-fade) NO_PAUSE_FADE=1 ;;
     --snapshot=*) SNAPSHOT="${a#--snapshot=}" ;;
     --api=timeout|--api=block|--api=fake|--api=http://*|--api=https://*) API_MODE="${a#--api=}" ;;
@@ -98,8 +102,9 @@ rm -rf www && rsync -a --exclude cordova.js --exclude cordova_plugins.js --exclu
 # BHC additions, loaded before cordova.js:
 #   bhc-compat.js  required shims for current iOS/WebKit (see file)
 #   bhc-debug.js   on-screen console / errors / fetch log (drop for a pristine build)
-# Optional game-code patch (off by default; the default build keeps www/js/index.min.js untouched).
+# Optional game-code patches (off by default; the default build keeps www/js/index.min.js untouched).
 if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
+if [ $FIX_TASK_QUEUE = 1 ]; then python3 -I ../patches/task_queue.py www/js/index.min.js; fi
 cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/
 # Publisher API mode (--api); characters special to sed / the JS string literal are rejected.
 case "$API_MODE" in *"#"*|*"'"*|*"&"*|*"\\"*) echo "--api URL must not contain # ' & or \\" >&2; exit 2 ;; esac

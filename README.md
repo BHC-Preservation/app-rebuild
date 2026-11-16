@@ -14,7 +14,7 @@ gives us a debuggable build (on-screen log, Safari Web Inspector) for reverse en
 
 - Bundle ID `org.bhcpreserve.colonies`, display name **"Colonies BHC"**, version 1.3.13.
 - It installs **next to** the original app and keeps its own data (settings, saved games).
-- By default the game code isn't patched (an opt-in fleet patch exists, see [Unlocking fleets](#unlocking-fleets)). The only additions are two small scripts loaded before `cordova.js` (see
+- By default the game code isn't patched (opt-in patches exist, see [Unlocking fleets](#unlocking-fleets) and [Task queue fix](#task-queue-fix---fix-task-queue)). The only additions are two small scripts loaded before `cordova.js` (see
   [Deviations](#deviations-from-the-original)).
 
 **Status:** in the iOS Simulator it starts up and reaches the main menu (intro, disclaimer, main menu; iPhone 18 Pro,
@@ -88,6 +88,20 @@ Nothing else changes, and the debug mode stays off. The list of available fleets
 and the chosen fleet goes into the new-game frame through the app's normal code path.
 
 Not yet tested with a real ARC (the Simulator has no Bluetooth).
+
+### Task queue fix (`--fix-task-queue`)
+
+```bash
+./setup.sh --fix-task-queue
+```
+
+After connecting, the app queues its ARC queries and ends the queue with a task that closes the connect screen
+(deob `3488.js` ~l. 2285). The firmware answer handler (~l. 1626) waits for `fw_status` and `fw_app` before it
+removes the firmware task; meanwhile the queue sends the firmware query again. Both answers then call
+`removeTask` (`7616.js` ~l. 1420), which has no check for a missing task: the second call does `splice(-1, 1)`
+and drops the **last** task instead. The connect screen never closes and the status line stays at
+"synchronizing with ARC". It shows up when the publisher API answers slower than the ARC, e.g. with `--api=<URL>`.
+`patches/task_queue.py` makes `removeTask` do nothing when the task isn't queued; nothing else changes.
 
 ### Publisher API (`--api`)
 
@@ -168,7 +182,7 @@ setup.sh            rebuilds colonies/ (see above)
 colonies/           Cordova project; only config.xml, build.json, hooks/ and package*.json are tracked
   hooks/            after_prepare fixes for building the 2023 plugin set with current Xcode
 local-plugins/      patched plugins (dfu-update, lock-font-size)
-patches/            opt-in game-code patches (fleet_gate.py, see "Unlocking fleets")
+patches/            opt-in game-code patches (fleet_gate.py, task_queue.py, see "Build")
 overlay/            bhc-compat.js (required shims), bhc-debug.js (on-screen debug log)
 mise.toml           Node 22
 ```
