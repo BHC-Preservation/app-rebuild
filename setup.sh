@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
-# Usage: ./setup.sh [--unlock-fleets] [--api=timeout|block|fake|<URL>]
+# Usage: ./setup.sh [--unlock-fleets] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
 #   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
 #   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
 #                    (the release build hides every fleet behind _debug)
 #   --api=MODE       what happens to requests for the dead publisher API exogen.space/bhcapi (see overlay/bhc-compat.js):
 #                    timeout (default, fail after 1 s), block (fail at once), fake (local answers: FW current,
 #                    app compatible), or a base URL of a replacement server, e.g. --api=https://bhc.example.org/bhcapi/
+#   --no-pause-fade  keep the screen visible when the app goes to the background (the game hides it, so returning
+#                    to the app flashes black); see overlay/bhc-compat.js, shim 4
 #   --snapshot=DIR   the original app's web layer: a directory holding www/ (default: $BHC_SNAPSHOT, else the first of
 #                    ../re/app-snapshot and ../extract/out/app-snapshot; the latter is what extract.sh produces from
 #                    your own copy of the app, see https://github.com/BHC-Preservation/extract)
 set -euo pipefail
 UNLOCK_FLEETS=0
+NO_PAUSE_FADE=0
 API_MODE=timeout
 SNAPSHOT="${BHC_SNAPSHOT:-}"
 for a in "$@"; do
   case "$a" in
     --unlock-fleets) UNLOCK_FLEETS=1 ;;
+    --no-pause-fade) NO_PAUSE_FADE=1 ;;
     --snapshot=*) SNAPSHOT="${a#--snapshot=}" ;;
     --api=timeout|--api=block|--api=fake|--api=http://*|--api=https://*) API_MODE="${a#--api=}" ;;
     *) echo "unknown option: $a" >&2; exit 2 ;;
@@ -101,6 +105,10 @@ cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/
 case "$API_MODE" in *"#"*|*"'"*|*"&"*|*"\\"*) echo "--api URL must not contain # ' & or \\" >&2; exit 2 ;; esac
 sed -i '' "s#^  var API_MODE = '[^']*';#  var API_MODE = '$API_MODE';#" www/bhc-compat.js
 grep -q "^  var API_MODE = '$API_MODE';" www/bhc-compat.js || { echo "failed to set API_MODE in bhc-compat.js" >&2; exit 1; }
+if [ $NO_PAUSE_FADE = 1 ]; then
+  sed -i '' 's#^  var NO_PAUSE_FADE = false;#  var NO_PAUSE_FADE = true;#' www/bhc-compat.js
+  grep -q '^  var NO_PAUSE_FADE = true;' www/bhc-compat.js || { echo "failed to set NO_PAUSE_FADE in bhc-compat.js" >&2; exit 1; }
+fi
 sed -i '' 's#    <script src="cordova.js"></script>#    <script src="bhc-debug.js"></script>\n    <script src="bhc-compat.js"></script>\n    <script src="cordova.js"></script>#' www/index.html
 $CDV prepare ios
 

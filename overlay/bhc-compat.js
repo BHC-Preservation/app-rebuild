@@ -179,3 +179,23 @@
   }
   document.addEventListener('deviceready', wrap, true);
 })();
+(function () {
+  // 4) Optional (off by default, original behaviour): keep the screen visible when the app goes to the background.
+  //    The game's onPause (8736.js ~l. 5300) adds body.opacity-0, so the app-switcher snapshot iOS takes is black and
+  //    returning to the app flashes black before the main menu is rebuilt (onResume -> showMainMenu). With this on,
+  //    the class is removed again right after the game's pause handler, in the same task, so no hidden frame is
+  //    rendered. Music, ambience and animations still stop on pause and restart on resume as in the original.
+  //    Set by `setup.sh --no-pause-fade`; for testing, localStorage.bhcNoPauseFade = '1' / '0' overrides it.
+  var NO_PAUSE_FADE = false;
+  try {
+    var o = localStorage.getItem('bhcNoPauseFade');
+    if (o !== null) NO_PAUSE_FADE = o === '1';
+  } catch (e) {}
+  if (!NO_PAUSE_FADE) return;
+  document.addEventListener('deviceready', function () {
+    // Registered before the game's own pause listener; the microtask runs after the whole (synchronous) dispatch.
+    document.addEventListener('pause', function () {
+      Promise.resolve().then(function () { document.body.classList.remove('opacity-0'); });
+    }, false);
+  }, true);
+})();

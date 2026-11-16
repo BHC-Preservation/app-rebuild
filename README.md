@@ -109,6 +109,18 @@ the main menu. That API is dead and on a phone the request can hang forever ("ch
 
 For testing without a rebuild, `localStorage.bhcApiMode` overrides the mode (set it in Safari Web Inspector, then reload).
 
+### Black flash when returning to the app (`--no-pause-fade`)
+
+```bash
+./setup.sh --no-pause-fade
+```
+
+When the app goes to the background the game hides the whole screen (`body.opacity-0`) and stops music and
+animations; when it comes back it rebuilds the main menu. iOS takes the app-switcher snapshot after the screen is
+hidden, so returning to the app flashes black. With `--no-pause-fade` the screen stays visible on pause; music and
+animations still stop and restart as in the original. Off by default because it changes the original behaviour;
+`localStorage.bhcNoPauseFade = '1'` / `'0'` overrides it for testing.
+
 ### Running it
 
 - **Simulator:** after the build, open `colonies/platforms/ios/App.xcworkspace` in Xcode and run on a simulator, or
