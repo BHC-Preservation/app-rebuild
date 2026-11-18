@@ -181,6 +181,12 @@ animations still stop and restart as in the original. Off by default because it 
 Don't run `cordova build` after changing things in Xcode unless you're happy to lose those changes:
 `platforms/` is generated.
 
+### Android and Amazon Fire
+
+Not supported yet, but it should be doable: the game code already has Android branches, the original was also built
+for Android, and Fire OS is Android without Google services (sideload the APK). [`android/`](android/README.md) has
+notes and an **untested** outline of an Android build (`android/sketch.sh`), with the known open questions.
+
 ## Debugging
 
 - **On-screen overlay** (`overlay/bhc-debug.js`): shows `console.*`, JS errors, every `fetch` (URL, status, timing,
@@ -220,6 +226,7 @@ local-plugins/      patched plugins (dfu-update, lock-font-size)
 patches/            opt-in game-code patches: *.py for the original index.min.js, deob/*.patch for --from-deob
 overlay/            bhc-compat.js (required shims), bhc-debug.js (on-screen debug log)
 mise.toml           Node 22
+android/            notes + untested outline for Android / Fire OS
 ```
 
 This repo contains no code or assets from the original app. A built app does: it contains the publisher's
