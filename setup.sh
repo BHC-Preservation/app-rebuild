@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Recreate the Colonies rebuild project from scratch:
 #   cordova-ios 8.2.0 (UIScene, required by iOS 27 SDK) + the original 23 plugins + preserved www/.
-# Usage: ./setup.sh [--unlock-fleets] [--fix-task-queue] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
+# Usage: ./setup.sh [--unlock-fleets] [--unlock-scenarios] [--fix-task-queue] [--api=timeout|block|fake|<URL>] [--no-pause-fade]
 #                   [--snapshot=DIR] [--from-deob[=DIR]] [--patch=FILE ...]
 #   (then: cd colonies && npx cordova build ios --emulator --buildConfig=build.json)
 #   --unlock-fleets  apply patches/fleet_gate.py: the fleet picker uses the ARC's fleet table
 #                    (the release build hides every fleet behind _debug)
+#   --unlock-scenarios apply patches/scenarios.py: show the "scenarios" main-menu entry (_scenariosEnabled); the
+#                    picker still offers only the scenarios the publisher marked as available. Untested with an ARC
 #   --fix-task-queue apply patches/task_queue.py: removeTask no longer drops the last queued task, which left the
 #                    app stuck at "synchronizing with ARC" when the publisher API answers slowly (e.g. --api=<URL>)
 #   --api=MODE       what happens to requests for the dead publisher API exogen.space/bhcapi (see overlay/bhc-compat.js):
@@ -19,11 +21,13 @@
 #   --from-deob[=DIR] build www/js/index.min.js from the deobfuscated modules instead of the original file: copy DIR
 #                    (default: deob/ next to the snapshot, i.e. ../extract/out/deob), apply patches, then put the modules
 #                    back together with ../extract/rebundle.mjs. Game-code patches are then diffs on the modules:
-#                    --unlock-fleets -> patches/deob/fleet-gate.patch, --fix-task-queue -> patches/deob/task-queue.patch
+#                    --unlock-fleets -> patches/deob/fleet-gate.patch, --unlock-scenarios -> patches/deob/scenarios.patch,
+#                    --fix-task-queue -> patches/deob/task-queue.patch
 #   --patch=FILE     (with --from-deob, repeatable) apply your own diff to the modules, e.g. made with
 #                    diff -U1 a/3488.js b/3488.js (paths relative to the deob dir, -p1)
 set -euo pipefail
 UNLOCK_FLEETS=0
+UNLOCK_SCENARIOS=0
 FIX_TASK_QUEUE=0
 NO_PAUSE_FADE=0
 API_MODE=timeout
@@ -34,6 +38,7 @@ USER_PATCHES=()
 for a in "$@"; do
   case "$a" in
     --unlock-fleets) UNLOCK_FLEETS=1 ;;
+    --unlock-scenarios) UNLOCK_SCENARIOS=1 ;;
     --fix-task-queue) FIX_TASK_QUEUE=1 ;;
     --no-pause-fade) NO_PAUSE_FADE=1 ;;
     --snapshot=*) SNAPSHOT="${a#--snapshot=}" ;;
@@ -84,6 +89,7 @@ if [ $FROM_DEOB = 1 ]; then
   cp -R "$DEOB" "$WORK/deob"
   DPATCHES=()
   [ $UNLOCK_FLEETS = 1 ] && DPATCHES+=("$(pwd)/patches/deob/fleet-gate.patch")
+  [ $UNLOCK_SCENARIOS = 1 ] && DPATCHES+=("$(pwd)/patches/deob/scenarios.patch")
   [ $FIX_TASK_QUEUE = 1 ] && DPATCHES+=("$(pwd)/patches/deob/task-queue.patch")
   for p in ${DPATCHES[@]+"${DPATCHES[@]}"} ${USER_PATCHES[@]+"${USER_PATCHES[@]}"}; do
     echo "== patch $(basename "$p")"
@@ -148,6 +154,7 @@ if [ -n "$BUNDLE" ]; then
   cp "$BUNDLE" www/js/index.min.js   # --from-deob: patches were applied to the modules above
 else
   if [ $UNLOCK_FLEETS = 1 ]; then python3 -I ../patches/fleet_gate.py www/js/index.min.js; fi
+  if [ $UNLOCK_SCENARIOS = 1 ]; then python3 -I ../patches/scenarios.py www/js/index.min.js; fi
   if [ $FIX_TASK_QUEUE = 1 ]; then python3 -I ../patches/task_queue.py www/js/index.min.js; fi
 fi
 cp ../overlay/bhc-compat.js ../overlay/bhc-debug.js www/

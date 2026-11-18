@@ -14,7 +14,7 @@ gives us a debuggable build (on-screen log, Safari Web Inspector) for reverse en
 
 - Bundle ID `org.bhcpreserve.colonies`, display name **"Colonies BHC"**, version 1.3.13.
 - It installs **next to** the original app and keeps its own data (settings, saved games).
-- By default the game code isn't patched (opt-in patches exist, see [Unlocking fleets](#unlocking-fleets) and [Task queue fix](#task-queue-fix---fix-task-queue)). The only additions are two small scripts loaded before `cordova.js` (see
+- By default the game code isn't patched (opt-in patches exist, see [Unlocking fleets](#unlocking-fleets), [Scenarios](#scenarios---unlock-scenarios) and [Task queue fix](#task-queue-fix---fix-task-queue)). The only additions are two small scripts loaded before `cordova.js` (see
   [Deviations](#deviations-from-the-original)).
 
 **Status:** in the iOS Simulator it starts up and reaches the main menu (intro, disclaimer, main menu; iPhone 18 Pro,
@@ -78,7 +78,7 @@ The first run takes a few minutes (npm + CocoaPods).
 
 ```bash
 ./setup.sh --from-deob                              # modules from ../extract/out/deob
-./setup.sh --from-deob --unlock-fleets --fix-task-queue
+./setup.sh --from-deob --unlock-fleets --unlock-scenarios --fix-task-queue
 ./setup.sh --from-deob --patch=my-fix.patch          # your own fix, repeatable
 ```
 
@@ -90,6 +90,7 @@ code instead of string replacements in obfuscated code:
 | option | without `--from-deob` | with `--from-deob` |
 |---|---|---|
 | `--unlock-fleets` | `patches/fleet_gate.py` on `index.min.js` | `patches/deob/fleet-gate.patch` on `881.js` |
+| `--unlock-scenarios` | `patches/scenarios.py` on `index.min.js` | `patches/deob/scenarios.patch` on `9073.js` |
 | `--fix-task-queue` | `patches/task_queue.py` on `index.min.js` | `patches/deob/task-queue.patch` on `7616.js` |
 | `--patch=FILE` | – | your diff, applied with `patch -p1` in the deob directory |
 
@@ -122,6 +123,22 @@ Nothing else changes, and the debug mode stays off. The list of available fleets
 and the chosen fleet goes into the new-game frame through the app's normal code path.
 
 Not yet tested with a real ARC (the Simulator has no Bluetooth).
+
+### Scenarios (`--unlock-scenarios`)
+
+```bash
+./setup.sh --unlock-scenarios
+```
+
+The app has a complete scenario mode: 21 scenarios with their own planets, rules, win and loss conditions and a
+start configuration for the ARC (game types 130 scenario coop and 131 scenario solo). The release build hides the
+"scenarios" main-menu entry behind a constant `_scenariosEnabled = false` (deob `9073.js` ~l. 208, checked in
+`8736.js` ~l. 5189). `patches/scenarios.py` flips that flag (the obfuscated file has the config object twice, both
+are changed). Nothing else changes: the entry still needs a connected ARC, and the picker still lists only the 7
+scenarios the publisher marked as available (1, 7, 9, 11, 12, 17, 19; deob `5183.js`). Details in the
+[scenarios page](https://bhc-preservation.github.io/docs/scenarios.html) of the docs.
+
+Not yet tested with a real ARC: it is unknown whether firmware 1.0.23 accepts scenario games.
 
 ### Task queue fix (`--fix-task-queue`)
 

@@ -1,0 +1,11 @@
+Show the "scenarios" main-menu entry. The release build hides it behind _scenariosEnabled = false
+(9073.js ~l. 208, checked in 8736.js ~l. 5189). The scenario list itself is unchanged: only the scenarios the
+publisher marked isAvailable (5183.js) can be picked. Opt-in: setup.sh --unlock-scenarios.
+
+--- a/9073.js
++++ b/9073.js
+@@ -207,3 +207,3 @@
+   _debug_sim: false,
+-  _scenariosEnabled: false,
++  _scenariosEnabled: true /* BHC: scenarios menu, see setup.sh --unlock-scenarios */,
+   _dev_api: false,
